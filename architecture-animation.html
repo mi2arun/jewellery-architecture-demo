@@ -353,8 +353,8 @@ const LAYOUTS = {
     books: ['pdb','mphys','ldb'],
     bookPos: {
       pdb:   { x: 30,  y: 138 },  // under Store Employees (emp y=30)
-      mphys: { x: 30,  y: 333 },  // under Top Management (mgr y=225)
-      ldb:   { x: 30,  y: 408 },  // stacked below mphys
+      ldb:   { x: 30,  y: 333 },  // under Top Management — Logical shown FIRST
+      mphys: { x: 30,  y: 408 },  // stacked below — Physical shown second
     },
   },
 };
@@ -456,14 +456,14 @@ const SCENES = {
       {narr:'❌ If an employee tries to reach the <span class="log">Logical Ledger</span>, there is <b>no route, no credential, no endpoint</b> — blocked at the network boundary.', step:'Blocked', lit:['emp'], reject:'ldb', badge:{node:'ldb', text:'✕ NO ACCESS'}, packet:{cls:'personal', label:'⛔ employee → Logical', path:['emp','ldb'], blocked:true}},
       {narr:'<span style="color:var(--gold)">Top Management</span> signs in to the <b>Management Web Portal</b> — the human-facing reporting UI on a private network.', step:'Mgmt Login', lit:['mgr','portal'], packet:{cls:'purchase', label:'🔑 owner login', path:['mgr','portal']}, pulse:['portal']},
       {narr:'🔐 The portal forces <b>step-up MFA</b> for the session, then reaches the <b>Connection Router</b> that sits after it.', step:'MFA', lit:['portal','mfa','router'], packet:{cls:'purchase', label:'🔐 2nd factor', path:['portal','mfa']}, pulse:['mfa']},
-      {narr:'Separately, a <b>routing-only mobile app</b> connects <b>directly to the Router</b> — its only job is the DB switch. Toggle defaults to <span class="phys">PHYSICAL</span>.', step:'Mobile Router', lit:['phone','router'], toggle:'phys', packet:{cls:'purchase', label:'📱 app → Router', path:['phone','router'], via:[{x:700,y:340}]}, pulse:['router','phone']},
-      {narr:'With the toggle on <span class="phys">PHYSICAL</span>, the Router binds to the <span class="phys">Physical Ledger DB</span>. <b>Management first sees the Physical view</b> — official books.', step:'Mgmt · Physical', lit:['router','pdb','mgr'], toggle:'phys', route:'phys', packet:{cls:'sale', label:'🔗 Physical → Management', path:['pdb','mgr']},
-        ledger:{book:'mphys', rows:[{k:'▾ MGMT VIEW · Physical', v:'', cls:'hdr'},{k:'Official ledger', v:'connected', cls:'cr'},{k:'Personal entries', v:'not present', cls:'cr'}]}},
-      {narr:'📝 Every read is first written to a <b>hash-chained Audit Log</b> — who, when, what, how many rows.', step:'Audit', lit:['portal','audit'], packet:{cls:'purchase', label:'📝 log read', path:['portal','audit']}, pulse:['audit']},
-      {narr:'👆 The manager taps <b>“SWITCH CONNECTION”</b> on the app — one button. The toggle slides to <span class="log">LOGICAL</span>, signalling the <b>Router</b> directly.', step:'Switch', lit:['phone','router'], tapBtn:true, toggle:'log', packet:{cls:'purchase', label:'📱 switch → Router', path:['phone','router'], via:[{x:700,y:340}]}, pulse:['phone','router']},
-      {narr:'After the switch, the Router binds to the <span class="log">Logical Ledger DB</span> via <code>logical_ro</code>. <b>Management now sees the Logical view too</b> — personal rows masked unless authorized.', step:'Mgmt · Logical', lit:['router','ldb','mgr'], toggle:'log', route:'log', packet:{cls:'purchase', label:'🔗 Logical → Management', path:['ldb','mgr']},
+      {narr:'👆 <b>First</b>, the manager uses the <b>routing-only mobile app</b> (connected directly to the Router) and taps <b>“SWITCH CONNECTION”</b> → toggle slides to <span class="log">LOGICAL</span>.', step:'Switch → Logical', lit:['phone','router'], tapBtn:true, toggle:'log', packet:{cls:'purchase', label:'📱 switch → Logical', path:['phone','router'], via:[{x:700,y:340}]}, pulse:['phone','router']},
+      {narr:'The Router binds to the <span class="log">Logical Ledger DB</span> via <code>logical_ro</code>. <b>Management first sees the Logical view</b> — personal rows masked unless authorized.', step:'Mgmt · Logical', lit:['router','ldb','mgr'], toggle:'log', route:'log', packet:{cls:'purchase', label:'🔗 Logical → Management', path:['ldb','mgr']},
         ledger:{book:'ldb', rows:[{k:'▾ MGMT VIEW · Logical', v:'', cls:'hdr'},{k:'Business entries', v:'full', cls:'cr'},{k:'Personal — ₹•••••', v:'masked', cls:'cr pers-row'}]}},
-      {narr:'✅ Employees get official MIS only. The <b>mobile app’s one button drives the Router</b> to switch the active DB — Physical ↔ Logical — behind MFA, audit & masking.', step:'Done', lit:['phone','router'], toggle:'log', route:'log'},
+      {narr:'📝 Every read is first written to a <b>hash-chained Audit Log</b> — who, when, what, how many rows.', step:'Audit', lit:['portal','audit'], packet:{cls:'purchase', label:'📝 log read', path:['portal','audit']}, pulse:['audit']},
+      {narr:'👆 The manager taps <b>“SWITCH CONNECTION”</b> again → toggle slides to <span class="phys">PHYSICAL</span>, re-binding the Router.', step:'Switch → Physical', lit:['phone','router'], tapBtn:true, toggle:'phys', packet:{cls:'sale', label:'📱 switch → Physical', path:['phone','router'], via:[{x:700,y:340}]}, pulse:['phone','router']},
+      {narr:'The Router now binds to the <span class="phys">Physical Ledger DB</span>. <b>Management then sees the Physical view</b> — official books only, no personal entries.', step:'Mgmt · Physical', lit:['router','pdb','mgr'], toggle:'phys', route:'phys', packet:{cls:'sale', label:'🔗 Physical → Management', path:['pdb','mgr']},
+        ledger:{book:'mphys', rows:[{k:'▾ MGMT VIEW · Physical', v:'', cls:'hdr'},{k:'Official ledger', v:'connected', cls:'cr'},{k:'Personal entries', v:'not present', cls:'cr'}]}},
+      {narr:'✅ Employees get official MIS only. The <b>mobile app’s one button drives the Router</b> to switch the active DB — Logical ↔ Physical — behind MFA, audit & masking.', step:'Done', lit:['phone','router'], toggle:'phys', route:'phys'},
     ]
   }
 };
