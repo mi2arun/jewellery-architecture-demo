@@ -1,0 +1,35 @@
+// PHYSICAL ledger DB (Region A) — official books. NON-personal entries only.
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/physical"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("PHYSICAL_DATABASE_URL")
+}
+
+model Store {
+  id     String @id
+  name   String
+  region String
+}
+
+model ChartOfAccount {
+  code String @id
+  name String
+  type String // ASSET | LIABILITY | INCOME | EXPENSE | EQUITY
+}
+
+model LedgerEntry {
+  id          String   @id @default(uuid())
+  storeId     String
+  accountCode String
+  debit       Decimal  @default(0) @db.Decimal(14, 2)
+  credit      Decimal  @default(0) @db.Decimal(14, 2)
+  memo        String?
+  sourceTxnId String   @unique // idempotency: one physical posting per source txn
+  postedAt    DateTime @default(now())
+
+  @@index([storeId])
+}

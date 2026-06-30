@@ -1,0 +1,61 @@
+services:
+  postgres-physical:
+    image: postgres:16-alpine
+    container_name: dl-physical
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: physical
+    ports:
+      - "5433:5432"
+    volumes:
+      - physical-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d physical"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  postgres-logical:
+    image: postgres:16-alpine
+    container_name: dl-logical
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: logical
+    ports:
+      - "5434:5432"
+    volumes:
+      - logical-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d logical"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: ./api
+    container_name: dl-api
+    depends_on:
+      postgres-physical:
+        condition: service_healthy
+      postgres-logical:
+        condition: service_healthy
+    environment:
+      PHYSICAL_DATABASE_URL: postgresql://app:app@postgres-physical:5432/physical?schema=public
+      LOGICAL_DATABASE_URL: postgresql://app:app@postgres-logical:5432/logical?schema=public
+      PORT: "3000"
+    ports:
+      - "3000:3000"
+
+  web:
+    build: ./web
+    container_name: dl-web
+    depends_on:
+      - api
+    ports:
+      - "5173:5173"
+
+volumes:
+  physical-data:
+  logical-data:

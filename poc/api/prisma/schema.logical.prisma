@@ -1,0 +1,97 @@
+// LOGICAL ledger DB (Region B) — complete truth: business + personal.
+// Also holds the transaction intake, inventory, outbox and audit log.
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/logical"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("LOGICAL_DATABASE_URL")
+}
+
+model Store {
+  id     String @id
+  name   String
+  region String
+}
+
+model ChartOfAccount {
+  code String @id
+  name String
+  type String
+}
+
+// Canonical intake record for EVERY transaction (business + personal).
+model Transaction {
+  id         String            @id @default(uuid())
+  storeId    String
+  type       String // SALE | PURCHASE
+  isPersonal Boolean           @default(false)
+  amount     Decimal           @db.Decimal(14, 2)
+  party      String?
+  createdAt  DateTime          @default(now())
+  lines      TransactionLine[]
+
+  @@index([storeId])
+}
+
+model TransactionLine {
+  id          String      @id @default(uuid())
+  txnId       String
+  accountCode String
+  debit       Decimal     @default(0) @db.Decimal(14, 2)
+  credit      Decimal     @default(0) @db.Decimal(14, 2)
+  txn         Transaction @relation(fields: [txnId], references: [id])
+}
+
+model InventoryItem {
+  id      String  @id @default(uuid())
+  storeId String
+  sku     String
+  metal   String
+  purity  String
+  weightG Decimal @default(0) @db.Decimal(10, 3)
+  qty     Int     @default(0)
+
+  @@unique([storeId, sku])
+}
+
+// Logical ledger entries — ALL postings (incl. personal).
+model LedgerEntry {
+  id          String   @id @default(uuid())
+  storeId     String
+  accountCode String
+  debit       Decimal  @default(0) @db.Decimal(14, 2)
+  credit      Decimal  @default(0) @db.Decimal(14, 2)
+  memo        String?
+  isPersonal  Boolean  @default(false)
+  sourceTxnId String   @unique // idempotency for the outbox worker
+  postedAt    DateTime @default(now())
+
+  @@index([storeId])
+}
+
+// Transactional outbox: written in the same tx as intake; drained by the worker.
+model Outbox {
+  id          String    @id @default(uuid())
+  txnId       String
+  payload     Json
+  status      String    @default("pending") // pending | done | error
+  createdAt   DateTime  @default(now())
+  processedAt DateTime?
+
+  @@index([status])
+}
+
+// Hash-chained audit log of management/logical reads + router switches.
+model AuditLog {
+  id        String   @id @default(uuid())
+  actorRole String
+  action    String
+  resource  String
+  rowCount  Int      @default(0)
+  prevHash  String
+  rowHash   String
+  ts        DateTime @default(now())
+}
