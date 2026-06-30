@@ -344,6 +344,11 @@ const LAYOUTS = {
       ['router','ldb','right'],     // router bound to Logical  (toggle = LOGICAL)
     ],
     books: ['pdb','ldb'],
+    // This is a REPORTING scene: results are fetched FROM the DBs and returned
+    // to the requester. So show each result book below the requester, not the DB.
+    //   pdb (physical results) -> under the Physical Reporting API (employee side)
+    //   ldb (logical results)  -> under Top Management (management side)
+    bookAnchor: { pdb: 'pubapi', ldb: 'mgr' },
   },
 };
 
@@ -499,9 +504,13 @@ function renderNodes(){
     stage.appendChild(el);
     nodeEls[id]=el;
   });
-  // ledger books attached under the layout's ledger DB nodes
+  // ledger books. By default a book sits under its own DB node; a layout may
+  // override the anchor (e.g. reporting scenes attach the fetched result under
+  // the REQUESTER instead of the DB). The book id stays book-<dbid> either way.
+  const anchors = LAYOUTS[LAYOUT].bookAnchor || {};
   LAYOUTS[LAYOUT].books.forEach(id=>{
-    const n = NODES[id];
+    const anchorId = anchors[id] || id;
+    const n = NODES[anchorId];
     const book = document.createElement('div');
     book.className='ledgerbook';
     book.id='book-'+id;
