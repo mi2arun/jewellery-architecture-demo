@@ -1,4 +1,4 @@
-// Talk to the API on :3000. Role is sent via x-role header (POC auth).
+// Shared API client (:3000). Role via x-role header (POC auth).
 const BASE = (import.meta as any).env?.VITE_API ?? 'http://localhost:3000';
 
 export type Role = 'employee' | 'management';
@@ -14,20 +14,25 @@ async function req(path: string, role: Role, opts: RequestInit = {}) {
 }
 
 export const api = {
+  // POS / shared
   stores: (role: Role) => req('/stores', role),
   inventory: (role: Role, store?: string) => req(`/inventory${store ? `?store=${store}` : ''}`, role),
   createTxn: (role: Role, data: any) =>
     req('/transactions', role, { method: 'POST', body: JSON.stringify(data) }),
   physicalLedger: (role: Role, store?: string) =>
     req(`/ledger/physical${store ? `?store=${store}` : ''}`, role),
+
+  // Management reports (read-only) — routed report follows the router binding
+  routedReport: (role: Role, store?: string) =>
+    req(`/ledger/report${store ? `?store=${store}` : ''}`, role),
   logicalLedger: (role: Role, store?: string, unmask?: boolean) =>
     req(`/ledger/logical?${store ? `store=${store}&` : ''}${unmask ? 'unmask=1' : ''}`, role),
   reconciliation: (role: Role, store?: string) =>
     req(`/reconciliation${store ? `?store=${store}` : ''}`, role),
+  audit: (role: Role) => req('/audit', role),
+
+  // Connection Router (mobile switch app)
   routerStatus: (role: Role) => req('/router/status', role),
   routerSwitch: (role: Role, target: 'physical' | 'logical') =>
     req('/router/switch', role, { method: 'POST', body: JSON.stringify({ target }) }),
-  routedReport: (role: Role, store?: string) =>
-    req(`/ledger/report${store ? `?store=${store}` : ''}`, role),
-  audit: (role: Role) => req('/audit', role),
 };
