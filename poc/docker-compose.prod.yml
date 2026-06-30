@@ -1,0 +1,43 @@
+# Production override for deploy.apps.tekfilo.com (Veld host).
+# Joins the existing Caddy reverse-proxy network (`velcrm`) and exposes:
+#   web -> https://jewellery-poc.apps.tekfilo.com
+#   api -> https://api-jewellery-poc.apps.tekfilo.com
+# Self-contained: ships its own Postgres (physical/logical); touches nothing shared.
+#
+# Usage on host:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+
+services:
+  postgres-physical:
+    ports: []          # internal only on prod
+    networks: [jlpoc]
+
+  postgres-logical:
+    ports: []
+    networks: [jlpoc]
+
+  api:
+    build:
+      context: ./api
+    ports: []          # reached via Caddy, not a host port
+    networks: [jlpoc, velcrm]
+    labels:
+      caddy: api-jewellery-poc.apps.tekfilo.com
+      caddy.reverse_proxy: "{{upstreams 3000}}"
+
+  web:
+    build:
+      context: ./web
+      args:
+        VITE_API: https://api-jewellery-poc.apps.tekfilo.com
+    ports: []
+    networks: [jlpoc, velcrm]
+    labels:
+      caddy: jewellery-poc.apps.tekfilo.com
+      caddy.reverse_proxy: "{{upstreams 5173}}"
+
+networks:
+  jlpoc:
+    driver: bridge
+  velcrm:
+    external: true
