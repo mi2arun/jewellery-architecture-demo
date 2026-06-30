@@ -13,19 +13,21 @@ export function Reports() {
   const [recon, setRecon] = useState<any>(null);
   const [audit, setAudit] = useState<any[]>([]);
   const [unmask, setUnmask] = useState(false);
-  const [logical, setLogical] = useState<any[]>([]);
   const [updatedAt, setUpdatedAt] = useState<string>('');
 
   const refresh = useCallback(async () => {
     try {
-      const st = await api.routerStatus(role); setBound(st.target);
+      const st = await api.routerStatus(role);
+      const tgt = st.target;
+      setBound(tgt);
       const rep = await api.routedReport(role, store); setReport(rep.rows || []);
-      setRecon(await api.reconciliation(role, store));
-      setLogical(await api.logicalLedger(role, store, unmask));
+      // Reconciliation exposes the personal total, so it belongs to the Logical
+      // view only. When bound to Physical, management sees Physical data only.
+      setRecon(tgt === 'logical' ? await api.reconciliation(role, store) : null);
       setAudit(await api.audit(role));
       setUpdatedAt(new Date().toLocaleTimeString());
     } catch { /* ignore for poll */ }
-  }, [store, unmask]);
+  }, [store]);
 
   useEffect(() => { api.stores(role).then((s) => { setStores(s); if (s[0]) setStore(s[0].id); }); }, []);
   useEffect(() => { refresh(); const t = setInterval(refresh, 3000); return () => clearInterval(t); }, [refresh]);
@@ -42,13 +44,15 @@ export function Reports() {
           <b style={{ color: bound === 'logical' ? C.log : C.phys }}>{bound.toUpperCase()} DB</b>
           <span style={{ color: C.muted, fontSize: 11 }}> (set by the Mobile Switch app)</span>
         </div>
-        <label style={{ marginLeft: 'auto', fontSize: 12, color: C.muted, display: 'flex', gap: 6, alignItems: 'center' }}>
-          <input type="checkbox" checked={unmask} onChange={(e) => setUnmask(e.target.checked)} /> unmask personal
-        </label>
-        <span style={{ color: C.muted, fontSize: 11 }}>updated {updatedAt}</span>
+        {bound === 'logical' && (
+          <label style={{ marginLeft: 'auto', fontSize: 12, color: C.muted, display: 'flex', gap: 6, alignItems: 'center' }}>
+            <input type="checkbox" checked={unmask} onChange={(e) => setUnmask(e.target.checked)} /> unmask personal
+          </label>
+        )}
+        <span style={{ color: C.muted, fontSize: 11, marginLeft: bound === 'logical' ? 0 : 'auto' }}>updated {updatedAt}</span>
       </section>
 
-      {recon && (
+      {recon && bound === 'logical' && (
         <section style={card()}>
           <h3 style={h3()}>Reconciliation {store && <span style={{ color: C.muted, fontWeight: 400, fontSize: 12 }}>· {store}</span>}</h3>
           <div style={{ display: 'flex', gap: 24, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -66,17 +70,15 @@ export function Reports() {
 
       <section style={card()}>
         <h3 style={{ ...h3(), color: bound === 'logical' ? C.log : C.phys }}>
-          Routed Report — reading {bound.toUpperCase()} ledger
+          {bound === 'logical' ? 'Logical Ledger' : 'Physical Ledger'}
+          <span style={{ color: C.muted, fontWeight: 400, fontSize: 12 }}>
+            {' '}· reading {bound.toUpperCase()} DB{bound === 'logical' ? ` · personal ${unmask ? 'revealed' : 'masked'}` : ' · official books only'}
+          </span>
         </h3>
         <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 8 }}>
-          This report runs against whichever DB the router is bound to. Switch it from the Mobile app and this view changes.
+          This view runs against whichever DB the Connection Router is bound to. Flip the Mobile Switch and it changes.
         </div>
-        <Rows rows={report} />
-      </section>
-
-      <section style={card()}>
-        <h3 style={{ ...h3(), color: C.log }}>Logical Ledger (full) <span style={{ color: C.muted, fontWeight: 400, fontSize: 12 }}>· personal {unmask ? 'revealed' : 'masked'}</span></h3>
-        <Rows rows={logical} />
+        <Rows rows={maskRows(report, bound === 'logical', unmask)} />
       </section>
 
       <section style={card()}>
@@ -91,6 +93,17 @@ export function Reports() {
         </table>
       </section>
     </div>
+  );
+}
+
+// Mask personal rows in the Logical view unless explicitly unmasked.
+// (Physical rows are never personal, so when bound to Physical this is a no-op.)
+function maskRows(rows: any[], isLogical: boolean, unmask: boolean) {
+  if (!isLogical || unmask) return rows;
+  return rows.map((r) =>
+    r.isPersonal
+      ? { ...r, memo: 'Personal — •••••', debit: '•••••', credit: '•••••' }
+      : r,
   );
 }
 
