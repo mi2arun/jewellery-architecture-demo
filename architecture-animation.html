@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Jewellery Retail — Dual-Ledger Architecture (Animated Walkthrough)</title>
+<style>
+  :root{
+    --bg:#0b0f1a; --panel:#121a2b; --panel2:#0e1626; --line:#1f2c45;
+    --ink:#e8eefc; --muted:#8b98b8;
+    --gold:#e4b95b; --gold2:#caa13e;
+    --physical:#4ea1ff; --logical:#b07cff; --personal:#ff6b8b;
+    --inventory:#37d3a0; --pos:#ffd166;
+    --ok:#37d3a0; --warn:#ff6b8b;
+    --shadow:0 10px 30px rgba(0,0,0,.45);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    background:radial-gradient(1200px 700px at 70% -10%, #16223c 0%, var(--bg) 55%);
+    color:var(--ink); font:15px/1.5 "Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;
+    overflow-x:hidden;
+  }
+  header{
+    display:flex; align-items:center; gap:14px; padding:16px 24px;
+    border-bottom:1px solid var(--line); background:linear-gradient(180deg,#101829,#0b121f);
+    position:sticky; top:0; z-index:50; backdrop-filter:blur(6px);
+  }
+  .logo{
+    width:38px;height:38px;border-radius:10px;
+    background:linear-gradient(135deg,var(--gold),#7a5f1e);
+    display:grid;place-items:center;font-size:20px;box-shadow:var(--shadow);
+  }
+  header h1{font-size:17px;margin:0;letter-spacing:.3px}
+  header .sub{color:var(--muted);font-size:12.5px;margin-top:2px}
+  .wrap{max-width:1180px;margin:0 auto;padding:18px 20px 80px}
+
+  /* Controls */
+  .controls{
+    display:flex;flex-wrap:wrap;align-items:center;gap:10px;
+    background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    padding:12px 14px;margin:16px 0;box-shadow:var(--shadow);
+  }
+  button{
+    background:#1b2740;color:var(--ink);border:1px solid #2a3a5c;border-radius:10px;
+    padding:9px 14px;font-size:14px;cursor:pointer;transition:.15s;font-weight:600;
+  }
+  button:hover{background:#243456;border-color:#3a527f}
+  button.primary{background:linear-gradient(135deg,var(--gold),var(--gold2));color:#1a1405;border:none}
+  button.primary:hover{filter:brightness(1.08)}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  .scenetabs{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto}
+  .scenetabs button{padding:7px 11px;font-size:12.5px}
+  .scenetabs button.active{background:#2a3a5c;border-color:var(--gold);color:var(--gold)}
+  .speed{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:13px}
+  .speed select{background:#1b2740;color:var(--ink);border:1px solid #2a3a5c;border-radius:8px;padding:6px}
+
+  /* Stage */
+  .stage{
+    position:relative;background:
+      linear-gradient(180deg,#0e1626,#0b1120);
+    border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);
+    padding:18px;min-height:660px;overflow:hidden;
+  }
+  .grid-bg{
+    position:absolute;inset:0;opacity:.25;pointer-events:none;
+    background-image:linear-gradient(#1c2742 1px,transparent 1px),linear-gradient(90deg,#1c2742 1px,transparent 1px);
+    background-size:34px 34px;mask:radial-gradient(900px 500px at 50% 30%,#000 40%,transparent 90%);
+  }
+
+  /* Node boxes */
+  .node{
+    position:absolute;border-radius:14px;border:1px solid var(--line);
+    background:linear-gradient(180deg,var(--panel),var(--panel2));
+    padding:12px 14px;width:188px;box-shadow:var(--shadow);
+    transition:box-shadow .3s,transform .3s,border-color .3s;
+  }
+  .node .nh{display:flex;align-items:center;gap:9px;font-weight:700;font-size:13.5px}
+  .node .ic{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;font-size:15px}
+  .node .desc{color:var(--muted);font-size:11.5px;margin-top:6px;line-height:1.45}
+  .node.lit{border-color:var(--gold);box-shadow:0 0 0 2px rgba(228,185,91,.25),var(--shadow);transform:translateY(-2px)}
+  .node .badge{
+    position:absolute;top:-10px;right:10px;font-size:10px;font-weight:700;
+    padding:2px 7px;border-radius:20px;background:#1b2740;border:1px solid #2a3a5c;color:var(--muted)
+  }
+
+  .ic.pos{background:rgba(255,209,102,.15);color:var(--pos)}
+  .ic.inv{background:rgba(55,211,160,.15);color:var(--inventory)}
+  .ic.api{background:rgba(228,185,91,.15);color:var(--gold)}
+  .ic.phys{background:rgba(78,161,255,.15);color:var(--physical)}
+  .ic.log{background:rgba(176,124,255,.15);color:var(--logical)}
+  .ic.bus{background:rgba(255,107,139,.12);color:var(--personal)}
+  /* report-layout icons */
+  .ic.emp{background:rgba(255,209,102,.15);color:var(--pos)}
+  .ic.mgr{background:rgba(228,185,91,.15);color:var(--gold)}
+  .ic.pubapi{background:rgba(78,161,255,.15);color:var(--physical)}
+  .ic.portal{background:rgba(55,211,160,.15);color:var(--inventory)}
+  .ic.mfa{background:rgba(55,211,160,.15);color:var(--ok)}
+  .ic.audit{background:rgba(176,124,255,.12);color:var(--logical)}
+  /* mobile-layout icons */
+  .ic.phone{background:rgba(228,185,91,.15);color:var(--gold)}
+  .ic.gw{background:rgba(255,209,102,.15);color:var(--pos)}
+
+  /* in-app toggle widget rendered inside the phone node */
+  .appui{margin-top:10px;border-top:1px solid var(--line);padding-top:10px}
+  .appui .screen{
+    background:#0a1120;border:1px solid #1a2742;border-radius:10px;padding:9px;
+  }
+  .appui .ttl{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+  .toggle{
+    display:flex;align-items:center;gap:8px;margin-top:8px;
+  }
+  .toggle .track{
+    position:relative;width:74px;height:28px;border-radius:20px;flex:0 0 auto;
+    background:linear-gradient(90deg,rgba(78,161,255,.35),rgba(78,161,255,.18));
+    border:1px solid #2a3a5c;transition:background .35s;
+  }
+  .toggle .track.toLog{background:linear-gradient(90deg,rgba(176,124,255,.18),rgba(176,124,255,.4))}
+  .toggle .knob{
+    position:absolute;top:2px;left:2px;width:24px;height:24px;border-radius:50%;
+    background:#e8eefc;box-shadow:0 2px 6px rgba(0,0,0,.5);transition:left .35s cubic-bezier(.34,1.4,.64,1);
+    display:grid;place-items:center;font-size:12px;
+  }
+  .toggle .track.toLog .knob{left:48px}
+  .toggle .lbl{font-size:11.5px;font-weight:700}
+  .toggle .lbl .p{color:var(--physical)}
+  .toggle .lbl .l{color:var(--logical)}
+  .appui .btn{
+    margin-top:9px;text-align:center;font-size:12px;font-weight:800;border-radius:9px;padding:8px;
+    color:#1a1405;background:linear-gradient(135deg,var(--gold),var(--gold2));
+    box-shadow:0 4px 12px rgba(0,0,0,.4);transition:transform .12s,filter .2s;
+  }
+  .appui .btn.tap{transform:scale(.94);filter:brightness(1.15)}
+  /* the active route edge gets highlighted, the other dimmed */
+  .edge.routeOn{stroke:var(--gold);stroke-width:3;filter:drop-shadow(0 0 4px rgba(228,185,91,.6))}
+  .edge.routeOff{opacity:.18}
+
+  /* edges (SVG) */
+  svg.edges{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1}
+  .edge{stroke:#2a3a5c;stroke-width:2;fill:none}
+  .edge.dash{stroke-dasharray:6 7}
+
+  /* moving packet */
+  .packet{
+    position:absolute;z-index:30;display:flex;align-items:center;gap:7px;
+    padding:7px 11px;border-radius:10px;font-size:12px;font-weight:700;white-space:nowrap;
+    box-shadow:0 8px 20px rgba(0,0,0,.5);opacity:0;transform:translate(-50%,-50%);
+    border:1px solid rgba(255,255,255,.15);
+  }
+  .packet.sale{background:linear-gradient(135deg,#2a5d3a,#1d3f29);color:#9ff0bf}
+  .packet.purchase{background:linear-gradient(135deg,#3a3a6d,#262648);color:#c7c7ff}
+  .packet.personal{background:linear-gradient(135deg,#5d2a3c,#3f1d2a);color:#ffb3c4}
+  .packet .dot{width:8px;height:8px;border-radius:50%;background:currentColor}
+
+  /* caption / narration */
+  .narration{
+    position:absolute;left:18px;right:18px;bottom:16px;z-index:40;
+    background:rgba(10,16,28,.86);border:1px solid var(--line);border-radius:12px;
+    padding:12px 16px;backdrop-filter:blur(4px);min-height:54px;
+    display:flex;align-items:center;gap:12px;
+  }
+  .narration .step{
+    font-size:11px;font-weight:700;color:#1a1405;background:var(--gold);
+    padding:3px 9px;border-radius:20px;white-space:nowrap;
+  }
+  .narration .txt{font-size:14px}
+  .narration .txt b{color:var(--gold)}
+  .narration .txt .phys{color:var(--physical);font-weight:700}
+  .narration .txt .log{color:var(--logical);font-weight:700}
+  .narration .txt .pers{color:var(--personal);font-weight:700}
+
+  /* ledger mini tables */
+  .ledgerbook{
+    position:absolute;z-index:20;width:188px;font-size:10.5px;
+  }
+  .ledgerbook .row{
+    display:flex;justify-content:space-between;gap:6px;padding:3px 8px;
+    border-radius:6px;margin-top:4px;background:#0c1422;border:1px solid #1a2742;
+    opacity:0;transform:translateY(6px);transition:.4s;
+  }
+  .ledgerbook .row.show{opacity:1;transform:none}
+  .ledgerbook .row .amt{font-variant-numeric:tabular-nums;font-weight:700}
+  .ledgerbook .row.dr .amt{color:#ff9db0}
+  .ledgerbook .row.cr .amt{color:#9ff0bf}
+  .ledgerbook .row.pers-row{border-color:var(--personal);background:#1c0f17}
+
+  .pulse{animation:pulse 1.4s ease-out}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(228,185,91,.5)}100%{box-shadow:0 0 0 26px rgba(228,185,91,0)}}
+
+  /* rejected (personal -> physical skipped) */
+  .node.reject{
+    border-color:var(--personal);
+    box-shadow:0 0 0 2px rgba(255,107,139,.35),var(--shadow);
+    filter:saturate(.6) brightness(.92);
+    animation:rejectShake .5s ease;
+  }
+  @keyframes rejectShake{0%,100%{transform:translateX(0)}20%{transform:translateX(-5px)}60%{transform:translateX(5px)}}
+  .reject-badge{
+    position:absolute;z-index:35;font-size:11px;font-weight:800;color:#fff;
+    background:linear-gradient(135deg,#e0395a,#a81e3a);
+    padding:4px 10px;border-radius:20px;border:1px solid rgba(255,255,255,.25);
+    box-shadow:0 6px 16px rgba(0,0,0,.5);transform:translate(-50%,-50%) scale(0);
+    transition:transform .3s cubic-bezier(.34,1.56,.64,1);white-space:nowrap;
+  }
+  .reject-badge.show{transform:translate(-50%,-50%) scale(1)}
+  /* the API->Physical edge flashes red & broken when rejected */
+  .edge.blocked{stroke:var(--personal);stroke-dasharray:7 8;animation:edgeBlink 1s ease-in-out infinite}
+  @keyframes edgeBlink{0%,100%{opacity:.25}50%{opacity:.9}}
+
+  .legend{display:flex;gap:18px;flex-wrap:wrap;margin-top:16px;color:var(--muted);font-size:12.5px}
+  .legend span{display:inline-flex;align-items:center;gap:7px}
+  .sw{width:12px;height:12px;border-radius:3px;display:inline-block}
+
+  .footnote{color:var(--muted);font-size:12px;margin-top:18px;line-height:1.6}
+  .footnote code{background:#15203a;padding:2px 6px;border-radius:5px;color:#cfe0ff}
+
+  .progress{height:4px;background:#1a2742;border-radius:4px;overflow:hidden;margin-top:14px}
+  .progress > i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--gold),var(--gold2));transition:width .25s}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">💎</div>
+  <div>
+    <h1>Jewellery Retail — Dual-Ledger Architecture</h1>
+    <div class="sub">Animated walkthrough · POS → Inventory → Physical &amp; Logical Ledgers · Personal vs Non-Personal · Secured Reporting · 50 Stores</div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="controls">
+    <button class="primary" id="playBtn">▶ Play</button>
+    <button id="prevBtn">⟸ Step Back</button>
+    <button id="nextBtn">Step ⟹</button>
+    <button id="restartBtn">↻ Restart</button>
+    <div class="speed">Speed
+      <select id="speed">
+        <option value="1.4">0.7×</option>
+        <option value="1" selected>1×</option>
+        <option value="0.6">1.6×</option>
+        <option value="0.4">2.5×</option>
+      </select>
+    </div>
+    <div class="scenetabs" id="scenetabs"></div>
+  </div>
+
+  <div class="stage" id="stage">
+    <div class="grid-bg"></div>
+    <svg class="edges" id="edges" viewBox="0 0 1140 660" preserveAspectRatio="none"></svg>
+    <!-- nodes injected by JS -->
+    <div class="narration" id="narration">
+      <span class="step" id="stepLabel">Ready</span>
+      <span class="txt" id="narrText">Press <b>Play</b> to start the walkthrough, or use <b>Step</b> to advance manually.</span>
+    </div>
+  </div>
+
+  <div class="progress"><i id="progressBar"></i></div>
+
+  <div class="legend">
+    <span><i class="sw" style="background:#ffd166"></i> POS / Invoice</span>
+    <span><i class="sw" style="background:#37d3a0"></i> Inventory</span>
+    <span><i class="sw" style="background:#e4b95b"></i> Posting API (double-entry)</span>
+    <span><i class="sw" style="background:#4ea1ff"></i> Physical Ledger (official books)</span>
+    <span><i class="sw" style="background:#b07cff"></i> Logical Ledger (complete truth)</span>
+    <span><i class="sw" style="background:#ff6b8b"></i> Personal (Logical only)</span>
+  </div>
+
+  <div class="footnote">
+    <b>How to read this:</b> Every <b>non-personal</b> business transaction is written <span style="color:var(--physical)">directly &amp; synchronously to the Physical Ledger</span>, then an event fans it out to the Logical Ledger.
+    Every transaction — business <i>and</i> <span style="color:var(--personal)">personal</span> — reaches the <span style="color:var(--logical)">Logical Ledger</span> via the event bus.
+    A <span style="color:var(--personal)">personal</span> invoice <b>skips Physical entirely</b> and lands only in Logical.
+    Therefore: <code>Logical = Physical + Personal</code>. Across all 50 stores, each ledger DB lives in its own geo-region.
+    <br><br>
+    <b>Scene ⑤ — Secured Reporting &amp; Mobile DB Switch:</b> Reporting is split into two planes. Normal employees use the <span style="color:var(--physical)">Physical Reporting API</span> for everyday MIS &amp; balance reports (read-only user <code>physical_ro</code>); they have <b>no route to Logical</b>. The <span style="color:var(--logical)">Logical Ledger</span> is reached <i>only</i> by management through a <b>secured mobile app + Management Portal on a private network</b>, behind <b>step-up MFA</b>, with every read written to a <b>hash-chained audit log</b> and personal rows <b>masked</b> unless authorized. Management uses a <b>Management Web Portal</b> (the reporting UI) — <span style="color:var(--gold)">Top Management user</span> → Web Portal → <b>step-up MFA</b> → <b>Connection Router</b>, with every read written to a <b>hash-chained audit log</b> and personal rows <b>masked</b> unless authorized. A <b>separate routing-only mobile app</b> connects <b>directly to the Router</b>; its single <b>“Switch Connection”</b> button toggles which DB the Router binds to — <span style="color:var(--physical)">Physical (Region A, physical_ro)</span> ↔ <span style="color:var(--logical)">Logical (Region B, logical_ro)</span> — one active connection at a time. The mobile app does routing only; it is not the reporting UI and never touches the employee plane.
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   NODE LAYOUT  (coordinates are in the 1140x560 viewBox space;
+   we map them to % so the stage stays responsive)
+   ============================================================ */
+const STAGE_W = 1140, STAGE_H = 660;
+
+/* Two diagram layouts. Transaction scenes use 'arch'; the secured-reporting
+   scene uses 'report' (different nodes). The active layout is swapped per scene. */
+const LAYOUTS = {
+  arch: {
+    nodes: {
+      pos:  {x:60,  y:60,  w:188, icon:'🧾', cls:'pos',  title:'POS / Invoice', desc:'Sales invoice & purchase bill created at store counter'},
+      inv:  {x:60,  y:300, w:188, icon:'📦', cls:'inv',  title:'Inventory', desc:'Stock in/out by SKU, metal, purity, weight'},
+      api:  {x:430, y:175, w:200, icon:'⚙️', cls:'api',  title:'Posting API', desc:'Builds balanced double-entry & routes by personal flag'},
+      bus:  {x:430, y:400, w:200, icon:'📡', cls:'bus',  title:'Event Bus (Outbox→Stream)', desc:'Reliable async fan-out to Logical'},
+      phys: {x:830, y:70,  w:200, icon:'🏛️', cls:'phys', title:'Physical Ledger', badge:'Region A', desc:'Official books · NON-personal only · direct write'},
+      log:  {x:830, y:330, w:200, icon:'📒', cls:'log',  title:'Logical Ledger', badge:'Region B', desc:'Complete truth · ALL entries (business + personal)'},
+    },
+    edges: [
+      ['pos','api','right'],
+      ['inv','api','right'],
+      ['pos','inv','down'],
+      ['api','phys','right'],
+      ['api','bus','down'],
+      ['bus','log','right'],
+    ],
+    books: ['phys','log'],
+  },
+
+  /* Secured reporting plane — now includes the management MOBILE APP whose
+     single toggle button switches which ledger DB the Management Portal is
+     bound to. The mobile app affects the management portal connection only. */
+  report: {
+    nodes: {
+      // --- employee plane (top) ---
+      emp:   {x:30,  y:30,  w:160, icon:'👤', cls:'emp',  title:'Store Employees', desc:'All staff · normal login'},
+      pubapi:{x:245, y:30,  w:180, icon:'📊', cls:'pubapi',title:'Physical Reporting API', desc:'Public · MIS, GST, stock'},
+      pdb:   {x:920, y:35,  w:160, icon:'🏛️', cls:'phys', title:'Physical Ledger DB', badge:'physical_ro', desc:'Official books · Region A'},
+
+      // --- management plane (middle): user -> web portal -> MFA -> router ---
+      mgr:   {x:30,  y:225, w:160, icon:'🔑', cls:'mgr',  title:'Top Management', badge:'owner', desc:'Logs in to the web portal'},
+      portal:{x:245, y:225, w:175, icon:'🖥️', cls:'portal',title:'Management Web Portal', desc:'Reporting UI · private network'},
+      mfa:   {x:475, y:225, w:140, icon:'🔐', cls:'mfa',  title:'Step-up MFA', desc:'2nd factor required'},
+      router:{x:680, y:225, w:175, icon:'🔀', cls:'gw',   title:'Connection Router', desc:'Binds to ONE ledger DB at a time'},
+      audit: {x:245, y:390, w:175, icon:'📝', cls:'audit',title:'Audit Log', desc:'Hash-chained · every read'},
+      ldb:   {x:920, y:330, w:160, icon:'📒', cls:'log',  title:'Logical Ledger DB', badge:'logical_ro', desc:'Private subnet · Region B'},
+
+      // --- routing-only mobile app (bottom): drives the router only ---
+      phone: {x:565, y:355, w:200, icon:'📱', cls:'phone', title:'Mobile App · Routing only', desc:'One button switches the Router',
+        widget:`<div class="appui"><div class="screen">
+          <div class="ttl">Router · Active DB</div>
+          <div class="toggle"><div class="track" id="mtrack"><div class="knob" id="mknob">🏛️</div></div>
+            <div class="lbl"><span class="p">PHYS</span> / <span class="l">LOGICAL</span></div></div>
+          <div class="btn" id="mbtn">SWITCH CONNECTION</div>
+        </div></div>`},
+    },
+    edges: [
+      ['emp','pubapi','right'],
+      ['pubapi','pdb','right'],
+      ['mgr','portal','right'],     // management user -> web portal
+      ['portal','mfa','right'],
+      ['mfa','router','right'],     // router sits AFTER the MFA box
+      ['phone','router','up'],      // mobile app drives the router ONLY (routing path)
+      ['portal','audit','down'],    // audit sits directly under the portal
+      ['router','pdb','right'],     // router bound to Physical (toggle = PHYS)
+      ['router','ldb','right'],     // router bound to Logical  (toggle = LOGICAL)
+    ],
+    books: ['pdb','ldb'],
+  },
+};
+
+/* active layout — mutated when scenes switch */
+let LAYOUT = 'arch';
+let NODES = LAYOUTS[LAYOUT].nodes;
+let EDGES = LAYOUTS[LAYOUT].edges;
+
+/* anchor helpers: returns {x,y} center-ish points for edges/packets */
+function px(id){const n=NODES[id];return {l:n.x, t:n.y, w:n.w, h: n.widget?180:(id==='api'||id==='bus'?92:(n.desc?96:70))};}
+function cx(id){const n=px(id);return n.l+n.w/2;}
+function cy(id){const n=px(id);return n.t+n.h/2;}
+function rightMid(id){const n=px(id);return {x:n.l+n.w, y:n.t+n.h/2};}
+function leftMid(id){const n=px(id);return {x:n.l, y:n.t+n.h/2};}
+function topMid(id){const n=px(id);return {x:n.l+n.w/2, y:n.t};}
+function botMid(id){const n=px(id);return {x:n.l+n.w/2, y:n.t+n.h};}
+
+/* ============================================================
+   SCENES — the "video". Each scene = ordered list of steps.
+   step types: lit (light up node), packet (move a chip along nodes),
+   ledger (reveal a row), narr (caption), pulse, clear
+   ============================================================ */
+
+function ledgerRows(book, rows){ return {type:'ledger', book, rows}; }
+
+const SCENES = {
+  /* ---------- SCENE 1: NON-PERSONAL SALE ---------- */
+  sale: {
+    name:'① Sale (Business)',
+    color:'sale', layout:'arch',
+    steps:[
+      {narr:'A customer buys a gold ring. The cashier creates a <b>Sales Invoice</b> at the store POS.', step:'POS', lit:['pos']},
+      {narr:'Inventory is decremented — the ring leaves <b>stock</b> (SKU, weight, purity recorded).', step:'Inventory', lit:['pos','inv'], packet:{cls:'sale', label:'🔻 Stock −1 ring', path:['pos','inv']}},
+      {narr:'The invoice is sent to the <b>Posting API</b>, which builds a balanced double-entry.', step:'Posting', lit:['inv','api'], packet:{cls:'sale', label:'🧾 Sale ₹85,000', path:['inv','api']}},
+      {narr:'It is NOT personal → <span class="phys">direct synchronous write to the Physical Ledger</span> (official books).', step:'Physical', lit:['api','phys'], packet:{cls:'sale', label:'➡ direct write', path:['api','phys']},
+        ledger:{book:'phys', rows:[{k:'Dr Cash', v:'85,000', cls:'dr'},{k:'Cr Sales', v:'85,000', cls:'cr'}]}},
+      {narr:'In the same DB transaction an <b>outbox event</b> is queued for fan-out.', step:'Event', lit:['api','bus'], packet:{cls:'sale', label:'📡 emit event', path:['api','bus']}, pulse:['bus']},
+      {narr:'The event bus delivers it to the <span class="log">Logical Ledger</span> — so Logical mirrors this business entry too.', step:'Logical', lit:['bus','log'], packet:{cls:'sale', label:'➡ fan-out', path:['bus','log']},
+        ledger:{book:'log', rows:[{k:'Dr Cash', v:'85,000', cls:'dr'},{k:'Cr Sales', v:'85,000', cls:'cr'}]}},
+      {narr:'✅ Business sale recorded in <span class="phys">Physical</span> AND <span class="log">Logical</span>. Books agree.', step:'Done', lit:['phys','log']},
+    ]
+  },
+
+  /* ---------- SCENE 2: NON-PERSONAL PURCHASE ---------- */
+  purchase:{
+    name:'② Purchase (Business)',
+    color:'purchase', layout:'arch',
+    steps:[
+      {narr:'The store buys gold bars from a supplier — a <b>Purchase Bill</b> is entered.', step:'POS', lit:['pos']},
+      {narr:'Inventory is <b>increased</b> — new stock added (weight & purity logged).', step:'Inventory', lit:['pos','inv'], packet:{cls:'purchase', label:'🔺 Stock +500g gold', path:['pos','inv']}},
+      {narr:'The purchase goes to the <b>Posting API</b> for double-entry posting.', step:'Posting', lit:['inv','api'], packet:{cls:'purchase', label:'🧾 Purchase ₹2,40,000', path:['inv','api']}},
+      {narr:'Not personal → <span class="phys">direct write to the Physical Ledger</span>.', step:'Physical', lit:['api','phys'], packet:{cls:'purchase', label:'➡ direct write', path:['api','phys']},
+        ledger:{book:'phys', rows:[{k:'Dr Purchases', v:'2,40,000', cls:'dr'},{k:'Cr Bank', v:'2,40,000', cls:'cr'}]}},
+      {narr:'Outbox event emitted for asynchronous fan-out.', step:'Event', lit:['api','bus'], packet:{cls:'purchase', label:'📡 emit event', path:['api','bus']}, pulse:['bus']},
+      {narr:'Event bus writes the same entry into the <span class="log">Logical Ledger</span>.', step:'Logical', lit:['bus','log'], packet:{cls:'purchase', label:'➡ fan-out', path:['bus','log']},
+        ledger:{book:'log', rows:[{k:'Dr Purchases', v:'2,40,000', cls:'dr'},{k:'Cr Bank', v:'2,40,000', cls:'cr'}]}},
+      {narr:'✅ Business purchase recorded in <span class="phys">Physical</span> AND <span class="log">Logical</span>.', step:'Done', lit:['phys','log']},
+    ]
+  },
+
+  /* ---------- SCENE 3: PERSONAL TRANSACTION ---------- */
+  personal:{
+    name:'③ Personal (flagged)',
+    color:'personal', layout:'arch',
+    steps:[
+      {narr:'The owner takes a gold chain for <span class="pers">personal use</span> — invoice is <b>flagged Personal</b>.', step:'POS', lit:['pos']},
+      {narr:'Inventory still updates (the item physically left stock).', step:'Inventory', lit:['pos','inv'], packet:{cls:'personal', label:'🔻 Stock −1 chain', path:['pos','inv']}},
+      {narr:'Posting API sees <span class="pers">is_personal = true</span> and routes differently…', step:'Posting', lit:['inv','api'], packet:{cls:'personal', label:'🧾 Personal ₹60,000', path:['inv','api']}},
+      {narr:'❌ <span class="phys">Physical Ledger is SKIPPED</span> — nothing is sent toward it; the entry routes <b>down</b> to the event bus instead.', step:'Skip', lit:['api','bus'], reject:'phys', badge:{node:'phys', text:'✕ NO ENTRY'}, packet:{cls:'personal', label:'📡 emit (logical-only)', path:['api','bus']}, pulse:['bus']},
+      {narr:'The <span class="pers">personal</span> entry lands in the <span class="log">Logical Ledger</span> only.', step:'Logical', lit:['bus','log'], packet:{cls:'personal', label:'➡ logical only', path:['bus','log']},
+        ledger:{book:'log', rows:[{k:'Dr Drawings (Personal)', v:'60,000', cls:'dr pers-row'},{k:'Cr Inventory', v:'60,000', cls:'cr pers-row'}]}},
+      {narr:'✅ Captured in <span class="log">Logical</span>, invisible in <span class="phys">Physical</span>. <b>Logical = Physical + Personal.</b>', step:'Done', lit:['log']},
+    ]
+  },
+
+  /* ---------- SCENE 4: 50 STORES / RECONCILE ---------- */
+  scale:{
+    name:'④ 50 Stores & Reconcile',
+    color:'sale', layout:'arch',
+    steps:[
+      {narr:'All <b>50 stores</b> post through this same pipeline — each store tagged by <code>store_id</code>.', step:'Stores', lit:['pos','inv']},
+      {narr:'Every store’s non-personal entries flow to the <span class="phys">central Physical Ledger</span> (Region A).', step:'Physical', lit:['api','phys'], packet:{cls:'sale', label:'×50 stores', path:['api','phys']},
+        ledger:{book:'phys', rows:[{k:'Σ Business (all stores)', v:'1.84 Cr', cls:'cr'}]}},
+      {narr:'Every store’s full activity — business + personal — flows to the <span class="log">central Logical Ledger</span> (Region B).', step:'Logical', lit:['bus','log'], packet:{cls:'personal', label:'×50 stores (all)', path:['bus','log']},
+        ledger:{book:'log', rows:[{k:'Σ Business', v:'1.84 Cr', cls:'cr'},{k:'Σ Personal', v:'0.21 Cr', cls:'cr pers-row'},{k:'Σ Total', v:'2.05 Cr', cls:'cr'}]}},
+      {narr:'📊 <b>Reconciliation:</b> <span class="log">Logical 2.05 Cr</span> − <span class="phys">Physical 1.84 Cr</span> = <span class="pers">Personal 0.21 Cr</span>. The model proves itself.', step:'Reconcile', lit:['phys','log']},
+    ]
+  },
+
+  /* ---------- SCENE 5: SECURED REPORTING ACCESS (incl. mgmt mobile app) ---------- */
+  secured:{
+    name:'⑤ Secured Reporting Access',
+    color:'purchase', layout:'report',
+    steps:[
+      {narr:'Two separate reporting planes. <b>Normal employees</b> use the <span class="phys">Physical Reporting API</span> for everyday MIS.', step:'Employee', lit:['emp','pubapi'], packet:{cls:'sale', label:'🔓 normal login', path:['emp','pubapi']}},
+      {narr:'It reads the <span class="phys">Physical Ledger DB</span> via read-only user <code>physical_ro</code> — official books, no personal data.', step:'Physical MIS', lit:['pubapi','pdb'], packet:{cls:'sale', label:'📊 MIS · GST · stock', path:['pubapi','pdb']},
+        ledger:{book:'pdb', rows:[{k:'Sales / Purchases', v:'official', cls:'cr'},{k:'Balance Sheet · GST', v:'✓ allowed', cls:'cr'}]}},
+      {narr:'❌ If an employee tries to reach the <span class="log">Logical Ledger</span>, there is <b>no route, no credential, no endpoint</b> — blocked at the network boundary.', step:'Blocked', lit:['emp'], reject:'ldb', badge:{node:'ldb', text:'✕ NO ACCESS'}, packet:{cls:'personal', label:'⛔ employee → Logical', path:['emp','ldb'], blocked:true}},
+      {narr:'<span style="color:var(--gold)">Top Management</span> signs in to the <b>Management Web Portal</b> — the human-facing reporting UI on a private network.', step:'Mgmt Login', lit:['mgr','portal'], packet:{cls:'purchase', label:'🔑 owner login', path:['mgr','portal']}, pulse:['portal']},
+      {narr:'🔐 The portal forces <b>step-up MFA</b> for the session, then reaches the <b>Connection Router</b> that sits after it.', step:'MFA', lit:['portal','mfa','router'], packet:{cls:'purchase', label:'🔐 2nd factor', path:['portal','mfa']}, pulse:['mfa']},
+      {narr:'Separately, a <b>routing-only mobile app</b> connects <b>directly to the Router</b> — its only job is the DB switch. Toggle defaults to <span class="phys">PHYSICAL</span>.', step:'Mobile Router', lit:['phone','router'], toggle:'phys', packet:{cls:'purchase', label:'📱 app → Router', path:['phone','router'], via:[{x:700,y:340}]}, pulse:['router','phone']},
+      {narr:'With the toggle on <span class="phys">PHYSICAL</span>, the Router binds to the <span class="phys">Physical Ledger DB</span> — official books, full management view.', step:'Bound: Physical', lit:['router','pdb'], toggle:'phys', route:'phys', packet:{cls:'sale', label:'🔗 Router → Physical', path:['router','pdb']},
+        ledger:{book:'pdb', rows:[{k:'Official ledger', v:'connected', cls:'cr'}]}},
+      {narr:'📝 Every read is first written to a <b>hash-chained Audit Log</b> — who, when, what, how many rows.', step:'Audit', lit:['portal','audit'], packet:{cls:'purchase', label:'📝 log read', path:['portal','audit']}, pulse:['audit']},
+      {narr:'👆 The manager taps <b>“SWITCH CONNECTION”</b> on the app — one button. The toggle slides to <span class="log">LOGICAL</span>, signalling the <b>Router</b> directly.', step:'Switch', lit:['phone','router'], tapBtn:true, toggle:'log', packet:{cls:'purchase', label:'📱 switch → Router', path:['phone','router'], via:[{x:700,y:340}]}, pulse:['phone','router']},
+      {narr:'The <b>Router</b> now binds to the <span class="log">Logical Ledger DB</span> via <code>logical_ro</code> — the Physical route goes dim. <b>Personal rows stay masked</b> unless explicitly authorized.', step:'Bound: Logical', lit:['router','ldb'], toggle:'log', route:'log', packet:{cls:'purchase', label:'🔗 Router → Logical', path:['router','ldb']},
+        ledger:{book:'ldb', rows:[{k:'Business entries', v:'full', cls:'cr'},{k:'Personal — ₹•••••', v:'masked', cls:'cr pers-row'}]}},
+      {narr:'✅ Employees get official MIS only. The <b>mobile app’s one button drives the Router</b> to switch the active DB — Physical ↔ Logical — behind MFA, audit & masking.', step:'Done', lit:['phone','router'], toggle:'log', route:'log'},
+    ]
+  }
+};
+
+/* ============================================================
+   RENDERING
+   ============================================================ */
+const stage = document.getElementById('stage');
+const edgesSvg = document.getElementById('edges');
+const narrText = document.getElementById('narrText');
+const stepLabel = document.getElementById('stepLabel');
+const progressBar = document.getElementById('progressBar');
+
+// map viewBox coords -> % of stage
+function toPctX(x){return (x/STAGE_W*100);}
+function toPctY(y){return (y/STAGE_H*100);}
+
+/* switch the active diagram layout and rebuild nodes/edges */
+function applyLayout(name){
+  if(name===LAYOUT && Object.keys(nodeEls).length) return; // already active
+  LAYOUT = name;
+  NODES = LAYOUTS[LAYOUT].nodes;
+  EDGES = LAYOUTS[LAYOUT].edges;
+  renderNodes();
+  renderEdges();
+}
+
+let nodeEls = {};
+function renderNodes(){
+  // clear any nodes/books from a previous layout
+  stage.querySelectorAll('.node, .ledgerbook, .reject-badge').forEach(e=>e.remove());
+  nodeEls = {};
+  Object.entries(NODES).forEach(([id,n])=>{
+    const el = document.createElement('div');
+    el.className='node';
+    el.id='node-'+id;
+    el.style.left = toPctX(n.x)+'%';
+    el.style.top  = toPctY(n.y)+'%';
+    el.style.width = n.w+'px';
+    el.innerHTML = `
+      ${n.badge?`<span class="badge">${n.badge}</span>`:''}
+      <div class="nh"><span class="ic ${n.cls}">${n.icon}</span>${n.title}</div>
+      <div class="desc">${n.desc}</div>
+      ${n.widget||''}`;
+    stage.appendChild(el);
+    nodeEls[id]=el;
+  });
+  // ledger books attached under the layout's ledger DB nodes
+  LAYOUTS[LAYOUT].books.forEach(id=>{
+    const n = NODES[id];
+    const book = document.createElement('div');
+    book.className='ledgerbook';
+    book.id='book-'+id;
+    book.style.left = toPctX(n.x)+'%';
+    book.style.top  = toPctY(n.y+108)+'%';
+    book.style.width = n.w+'px';
+    stage.appendChild(book);
+  });
+}
+
+function renderEdges(){
+  let html='';
+  const pt = (id,side)=> side==='right'?rightMid(id): side==='left'?leftMid(id): side==='down'?botMid(id):topMid(id);
+  EDGES.forEach(([a,b,dir])=>{
+    let p1,p2,d;
+    if(dir==='right'){p1=rightMid(a);p2=leftMid(b);}
+    else if(dir==='down'){p1=botMid(a);p2=topMid(b);}
+    else if(dir==='up'){p1=topMid(a);p2=botMid(b);}
+    else if(dir==='under'){p1=botMid(a);p2=botMid(b);}
+    if(dir==='right'){
+      const midx=(p1.x+p2.x)/2;
+      d=`M${p1.x},${p1.y} C${midx},${p1.y} ${midx},${p2.y} ${p2.x},${p2.y}`;
+    }else if(dir==='under'){
+      // drop straight below the source, run across the clear bottom channel,
+      // then rise into the target's bottom — clears every box in between
+      const sag=520;
+      d=`M${p1.x},${p1.y} C${p1.x},${sag} ${p2.x},${sag} ${p2.x},${p2.y}`;
+    }else{ // down or up
+      const midy=(p1.y+p2.y)/2;
+      d=`M${p1.x},${p1.y} C${p1.x},${midy} ${p2.x},${midy} ${p2.x},${p2.y}`;
+    }
+    const dash = (a==='api'&&b==='bus')||(b==='log')||(a==='phone')?'dash':'';
+    html+=`<path id="edge-${a}-${b}" class="edge ${dash}" d="${d}"/>`;
+  });
+  // arrowhead marker
+  edgesSvg.innerHTML = `<defs>
+    <marker id="ah" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 Z" fill="#3a527f"/>
+    </marker></defs>`+html;
+}
+
+/* packet movement: animate a chip from node A center to node B center.
+   `via` (optional) is an array of {x,y} viewBox waypoints the chip passes
+   through — used to route a chip around boxes (e.g. the under-row link). */
+function movePacket(cls, label, path, blocked, durBase, via){
+  return new Promise(resolve=>{
+    const p = document.createElement('div');
+    p.className='packet '+cls;
+    p.innerHTML = `<span class="dot"></span>${label}`;
+    stage.appendChild(p);
+    const pts = path.map(id=>({x: toPctX(cx(id)), y: toPctY(cy(id))}));
+    let start=pts[0], end=pts[pts.length-1];
+    if(blocked){ // stop partway and shake
+      end = {x:start.x+(pts[pts.length-1].x-start.x)*0.55, y:start.y+(pts[pts.length-1].y-start.y)*0.55};
+    }
+    // assemble the full leg list: start -> via... -> end
+    const legs=[start, ...((via&&!blocked)?via.map(w=>({x:toPctX(w.x),y:toPctY(w.y)})):[]), end];
+    p.style.left=legs[0].x+'%'; p.style.top=legs[0].y+'%'; p.style.opacity='0';
+    const perLeg=(durBase*0.9)/(legs.length-1);
+    let li=0;
+    function step(){
+      li++;
+      if(li>=legs.length){return;}
+      p.style.transition=`left ${perLeg}ms ${legs.length>2?'linear':'ease-in-out'}, top ${perLeg}ms ${legs.length>2?'linear':'ease-in-out'}, opacity .25s`;
+      p.style.opacity='1'; p.style.left=legs[li].x+'%'; p.style.top=legs[li].y+'%';
+      if(li<legs.length-1) setTimeout(step, perLeg);
+    }
+    requestAnimationFrame(step);
+    setTimeout(()=>{
+      if(blocked){
+        p.style.transition='transform .12s'; let i=0;
+        const shake=setInterval(()=>{p.style.transform=`translate(-50%,-50%) translateX(${i%2?6:-6}px)`;i++;if(i>5){clearInterval(shake);p.style.transform='translate(-50%,-50%)';}},80);
+        p.style.filter='grayscale(.3) brightness(.8)';
+      }
+      p.style.transition='opacity .4s'; p.style.opacity='0';
+      setTimeout(()=>{p.remove();resolve();}, 420);
+    }, durBase*0.95);
+  });
+}
+
+function clearLit(){Object.values(nodeEls).forEach(e=>e.classList.remove('lit','pulse'));}
+
+/* reject cue: mark a node as "skipped" and flash any edge feeding it red & broken */
+function rejectNode(id){
+  const el=nodeEls[id]; if(el){el.classList.remove('reject');void el.offsetWidth;el.classList.add('reject');}
+  // flash every edge whose target is this node
+  EDGES.filter(([a,b])=>b===id).forEach(([a,b])=>{
+    const edge=document.getElementById('edge-'+a+'-'+b);
+    if(edge) edge.classList.add('blocked');
+  });
+}
+function clearReject(){
+  Object.values(nodeEls).forEach(e=>e.classList.remove('reject'));
+  document.querySelectorAll('.edge.blocked').forEach(e=>e.classList.remove('blocked'));
+  document.querySelectorAll('.reject-badge').forEach(b=>b.remove());
+}
+function showRejectBadge(id, text){
+  const n=NODES[id];
+  const b=document.createElement('div');
+  b.className='reject-badge';
+  b.textContent=text;
+  // place over the right edge of the node
+  b.style.left = toPctX(n.x + n.w)+'%';
+  b.style.top  = toPctY(n.y + 18)+'%';
+  stage.appendChild(b);
+  requestAnimationFrame(()=>b.classList.add('show'));
+}
+function setLit(ids){clearLit(); (ids||[]).forEach(id=>nodeEls[id]&&nodeEls[id].classList.add('lit'));}
+function pulseNodes(ids){(ids||[]).forEach(id=>{if(nodeEls[id]){nodeEls[id].classList.remove('pulse');void nodeEls[id].offsetWidth;nodeEls[id].classList.add('pulse');}});}
+
+/* ---- mobile-app toggle / routing helpers ---- */
+function setToggle(target){ // target: 'phys' (left) or 'log' (right)
+  const track=document.getElementById('mtrack'), knob=document.getElementById('mknob');
+  if(!track) return;
+  if(target==='log'){track.classList.add('toLog'); knob.textContent='📒';}
+  else{track.classList.remove('toLog'); knob.textContent='🏛️';}
+}
+function tapButton(){
+  const btn=document.getElementById('mbtn');
+  if(!btn) return;
+  btn.classList.add('tap');
+  setTimeout(()=>btn.classList.remove('tap'), 160);
+}
+function setRoute(target){ // highlight router->target edge, dim the other
+  const on = target==='log' ? 'edge-router-ldb' : 'edge-router-pdb';
+  const off= target==='log' ? 'edge-router-pdb' : 'edge-router-ldb';
+  document.querySelectorAll('.edge.routeOn,.edge.routeOff').forEach(e=>e.classList.remove('routeOn','routeOff'));
+  const onE=document.getElementById(on), offE=document.getElementById(off);
+  if(onE) onE.classList.add('routeOn');
+  if(offE) offE.classList.add('routeOff');
+}
+function clearRoute(){document.querySelectorAll('.edge.routeOn,.edge.routeOff').forEach(e=>e.classList.remove('routeOn','routeOff'));}
+
+function addLedgerRows(book, rows){
+  const el = document.getElementById('book-'+book);
+  rows.forEach((r,i)=>{
+    const row=document.createElement('div');
+    row.className='row '+(r.cls||'');
+    row.innerHTML=`<span>${r.k}</span><span class="amt">₹${r.v}</span>`;
+    el.appendChild(row);
+    setTimeout(()=>row.classList.add('show'), 80*i+50);
+  });
+}
+function clearLedgers(){LAYOUTS[LAYOUT].books.forEach(b=>{const el=document.getElementById('book-'+b);if(el)el.innerHTML='';});}
+
+/* ============================================================
+   PLAYBACK ENGINE
+   ============================================================ */
+let currentScene='sale', stepIdx=-1, playing=false, playToken=0;
+function speed(){return parseFloat(document.getElementById('speed').value);}
+function sceneSteps(){return SCENES[currentScene].steps;}
+
+function resetStage(){
+  clearLit(); clearLedgers(); clearReject(); clearRoute();
+  document.querySelectorAll('.packet').forEach(p=>p.remove());
+  setToggle('phys'); // default position when (re)entering a scene
+  stepIdx=-1;
+  narrText.innerHTML='Scene: <b>'+SCENES[currentScene].name+'</b> — press Play or Step.';
+  stepLabel.textContent='Ready';
+  updateProgress();
+}
+
+function updateProgress(){
+  const total=sceneSteps().length;
+  const pct = stepIdx<0?0:((stepIdx+1)/total*100);
+  progressBar.style.width=pct+'%';
+}
+
+async function applyStep(i, animate=true){
+  const s = sceneSteps()[i];
+  if(!s) return;
+  stepLabel.textContent = s.step || ('Step '+(i+1));
+  narrText.innerHTML = s.narr || '';
+  clearReject();              // reject cue lives only on its own step
+  setLit(s.lit);
+  if(s.pulse) pulseNodes(s.pulse);
+  if(s.reject) rejectNode(s.reject);
+  if(s.badge) showRejectBadge(s.badge.node, s.badge.text);
+  if(s.tapBtn) tapButton();
+  if(s.toggle) setToggle(s.toggle);
+  if(s.route) setRoute(s.route);
+  const dur = 900*speed();
+  if(s.packet && animate){
+    await movePacket(s.packet.cls, s.packet.label, s.packet.path, s.packet.blocked, dur, s.packet.via);
+  }else if(s.packet && !animate){
+    // no packet anim on instant jump
+  }
+  if(s.ledger) addLedgerRows(s.ledger.book, s.ledger.rows);
+}
+
+async function nextStep(){
+  if(stepIdx >= sceneSteps().length-1) return false;
+  stepIdx++;
+  updateProgress();
+  await applyStep(stepIdx, true);
+  return true;
+}
+
+function prevStep(){
+  if(stepIdx<=0){resetStage();return;}
+  // rebuild up to stepIdx-1 instantly
+  const target=stepIdx-1;
+  resetStage();
+  for(let i=0;i<=target;i++){
+    stepIdx=i;
+    const s=sceneSteps()[i];
+    stepLabel.textContent=s.step||('Step '+(i+1));
+    narrText.innerHTML=s.narr||'';
+    clearReject();
+    setLit(s.lit);
+    if(s.toggle) setToggle(s.toggle);   // toggle/route are stateful — apply cumulatively
+    if(s.route) setRoute(s.route);
+    if(i===target){
+      if(s.reject) rejectNode(s.reject);
+      if(s.badge) showRejectBadge(s.badge.node, s.badge.text);
+    }
+    if(s.ledger) addLedgerRows(s.ledger.book, s.ledger.rows);
+  }
+  updateProgress();
+}
+
+async function play(){
+  if(playing){ // pause
+    playing=false; playToken++;
+    document.getElementById('playBtn').innerHTML='▶ Play';
+    return;
+  }
+  playing=true;
+  document.getElementById('playBtn').innerHTML='⏸ Pause';
+  const myToken=++playToken;
+  if(stepIdx>=sceneSteps().length-1) resetStage();
+  while(playing && myToken===playToken){
+    const more=await nextStep();
+    if(!more) break;
+    await wait(700*speed());
+    if(myToken!==playToken) return;
+  }
+  playing=false;
+  document.getElementById('playBtn').innerHTML='▶ Play';
+}
+function wait(ms){return new Promise(r=>setTimeout(r,ms));}
+
+/* scene tabs */
+function buildTabs(){
+  const tabs=document.getElementById('scenetabs');
+  Object.entries(SCENES).forEach(([key,sc])=>{
+    const b=document.createElement('button');
+    b.textContent=sc.name; b.dataset.key=key;
+    if(key===currentScene)b.classList.add('active');
+    b.onclick=()=>{ playing=false;playToken++;document.getElementById('playBtn').innerHTML='▶ Play';
+      currentScene=key;
+      [...tabs.children].forEach(c=>c.classList.toggle('active',c.dataset.key===key));
+      applyLayout(SCENES[key].layout||'arch');
+      resetStage();
+    };
+    tabs.appendChild(b);
+  });
+}
+
+/* wire controls */
+document.getElementById('playBtn').onclick=play;
+document.getElementById('nextBtn').onclick=async()=>{playing=false;playToken++;document.getElementById('playBtn').innerHTML='▶ Play';await nextStep();};
+document.getElementById('prevBtn').onclick=()=>{playing=false;playToken++;document.getElementById('playBtn').innerHTML='▶ Play';prevStep();};
+document.getElementById('restartBtn').onclick=()=>{playing=false;playToken++;document.getElementById('playBtn').innerHTML='▶ Play';resetStage();};
+
+/* init */
+renderNodes();
+renderEdges();
+buildTabs();
+resetStage();
+window.addEventListener('resize',renderEdges);
+</script>
+</body>
+</html>
